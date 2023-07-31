@@ -1,6 +1,8 @@
 package com.example.chat;
 import android.app.Activity;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -10,8 +12,25 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.view.inputmethod.EditorInfo;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.logging.Logger;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+
 public class ChatActivity extends Activity {
     private LinearLayout chatLayout;
+    private Logger logger;
     private EditText inputField;
     private Button sendButton;
     private Button changeButton;
@@ -57,16 +76,68 @@ public class ChatActivity extends Activity {
     private void sendMessage() {
         String message = inputField.getText().toString();
         if (!message.isEmpty()) {
-            addMessageToChatArea(message, isSelfBubble);
-            inputField.setText("");
-            // 여기서 실제로 상대방에게 메시지를 전송하거나 처리하는 로직을 추가해야 합니다.
+            // 백그라운드 스레드에서 네트워크 작업 수행
+            new SendToServerTask().execute(message);
+        }
+    }
+
+    // AsyncTask를 사용하여 백그라운드에서 네트워크 작업을 처리
+    private class SendToServerTask extends AsyncTask<String, Void, String> {
+        @Override
+        protected String doInBackground(String... params) {
+            String message = params[0];
+            return sendToServer(message);
+        }
+
+        @Override
+        protected void onPostExecute(String response) {
+            // 네트워크 작업 완료 후 UI 업데이트
+            addMessageToChatArea(response, !isSelfBubble);
+        }
+    }
+    private String sendToServer(String message) {
+        //동렬아 여기 url 안드로이드 스튜디오랑 스프링 서버 같은 로컬로 안 돌리면 172.20.10.5:8080 =>localhost로 바꿔야됨 ㅇㅇ
+        String baseUrl = "http://172.20.10.5:8080/api/v1/chat-gpt";
+        try {
+            URL url = new URL(baseUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setDoOutput(true);
+
+            OutputStream outputStream = connection.getOutputStream();
+            outputStream.write(message.getBytes());
+            outputStream.flush();
+            outputStream.close();
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                BufferedReader bufferedReader = new BufferedReader(
+                        new InputStreamReader(connection.getInputStream())
+                );
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = bufferedReader.readLine()) != null) {
+                    response.append(line);
+                }
+                bufferedReader.close();
+
+
+                return response.toString();
+            } else {
+                return "Error";
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            Log.e("My app", "Error occurred:", e);
+            return "Request failed";
         }
     }
 
     private void addMessageToChatArea(String message, boolean isSelf) {
         TextView textView = new TextView(this);
         textView.setText(message);
-        textView.setBackgroundResource(R.drawable.chat_bubble); // 9-patch 이미지로 배경 설정
+        textView.setBackgroundResource(R.drawable.chat_bubble);
         textView.setPadding(20, 10, 20, 10); // 원하는 패딩 값으로 조정
         LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,

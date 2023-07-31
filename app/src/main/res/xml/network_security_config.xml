@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <!-- Optional: Include system default trust anchors -->
+            <!--<certificates src="system" />-->
+            <!-- Additional certificates can be added here. -->
+        </trust-anchors>
+    </base-config>
+</network-security-config>
